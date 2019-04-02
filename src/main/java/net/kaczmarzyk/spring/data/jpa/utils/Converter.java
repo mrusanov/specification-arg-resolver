@@ -15,6 +15,8 @@
  */
 package net.kaczmarzyk.spring.data.jpa.utils;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -26,6 +28,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 
+import java.util.UUID;
 import net.kaczmarzyk.spring.data.jpa.web.annotation.OnTypeMismatch;
 
 
@@ -112,7 +115,9 @@ public class Converter {
 			return (T) convertToLocalDate(value);
 		} else if (expectedClass.isAssignableFrom(BigDecimal.class)) {
 			return (T) convertToBigDecimal(value);
-		}
+		} else if (expectedClass.isAssignableFrom(UUID.class)) {
+			return (T) convertToUUID(value);
+    }
 		return (T) value;
 	}
 	
@@ -124,6 +129,13 @@ public class Converter {
 		}
 		return false;
 	}
+
+	private UUID convertToUUID(String value) {
+		if(value == null || (value != null && value.equals("null"))) {
+			return null;
+		}
+		return UUID.fromString(value);
+  }
 
 	private LocalDate convertToLocalDate(String value) {
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat);
@@ -214,7 +226,13 @@ public class Converter {
 				return (T) enumVal;
 			}
 		}
-		throw new ValueRejectedException(value, "could not find value " + value + " for enum class " + enumClass.getSimpleName());
+		// Try to use the fromString() static method (if defined) in the enum
+    try {
+      Method fromStringMethod = enumClass.getDeclaredMethod("fromString", String.class);
+      return (T) fromStringMethod.invoke(null, value);
+    } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | IllegalArgumentException e) {
+      throw new ValueRejectedException(value, "could not find value " + value + " for enum class " + enumClass.getSimpleName());
+    }
 	}
 
 	@Override
